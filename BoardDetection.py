@@ -1,10 +1,14 @@
 import cv2
+import numpy as np
 
 img = cv2.imread('Images/EmptyBoardTest.jpg', cv2.IMREAD_COLOR) #Load the Dartboard image, IMREAD_COLOR loads the image in coloR, The image data is stored in img
 
 height, width = img.shape[:2] #img.shape returns a tuple containing the dimensions of the image. The first two elements of this tuple represent the height and width of the image, respectively. The [:2] slice is used to extract only these two values, which are then assigned to the variables height and width. 
 scale = min(800 / width, 700 / height) # calculate the scaling factor to resize the image while maintaining its aspect ratio.
 img = cv2.resize(img, (int(width * scale), int(height * scale))) #multiply both dimentions by the same scale to keep the proportions of the image.
+gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) # making a grayscale version of the image for scoring zones as they are black and white.
+edges = cv2.Canny(gray, 50, 150) # detects edges where brightness changes alot 
+
 
 hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV) #convert the resized image from BGR color to HSV , makes a seperate image called  hsv img stays in BGR colour.
 
@@ -89,6 +93,99 @@ if len(sorted_contours) >= 5:
 
         # Draw the inner bull boundary in yellow
         cv2.ellipse(img, inner_bull_ellipse, (0, 255, 255), 2)
+
+# Continue only if the five main board contours were found.
+if len(sorted_contours) >= 5:
+
+    # Create a blank mask to mark where the single-scoring sections are.
+    singles_mask = np.zeros(gray.shape, dtype=np.uint8)
+
+    # Fill inside the inner double boundary, excluding doubles and outside areas.
+    cv2.drawContours(
+        singles_mask, [sorted_contours[1]], -1, 255, cv2.FILLED
+    )
+
+    # Remove everything inside the outer treble boundary.
+    # This leaves the outer single sections.
+    cv2.drawContours(
+        singles_mask, [sorted_contours[2]], -1, 0, cv2.FILLED
+    )
+
+    # Add back the area inside the inner treble boundary.
+    # This adds the inner single sections without adding the treble ring.
+    cv2.drawContours(
+        singles_mask, [sorted_contours[3]], -1, 255, cv2.FILLED
+    )
+
+    # Remove the bull area from the mask.
+    cv2.drawContours(
+        singles_mask, [sorted_contours[4]], -1, 0, cv2.FILLED
+    )
+
+    # Create a small kernel for cleaning up the masks.
+    section_kernel = np.ones((3, 3), dtype=np.uint8)
+
+    # Move the mask slightly away from the ring boundaries.
+    singles_mask = cv2.erode(
+        singles_mask, section_kernel, iterations=1
+    )
+
+    # Blur the clean grayscale image to smooth out small surface details.
+    blurred_gray = cv2.GaussianBlur(gray, (7, 7), 0)
+
+    # Select obvious white areas using their brightness.
+    white_mask = cv2.inRange(blurred_gray, 155, 255)
+
+    # Select obvious black areas using their brightness.
+    # Values between 105 and 155 are ignored to avoid uncertain pixels.
+    black_mask = cv2.inRange(blurred_gray, 0, 105)
+
+    # Keep white pixels only within the single-scoring areas.
+    white_mask = cv2.bitwise_and(white_mask, singles_mask)
+
+    # Keep black pixels only within the single-scoring areas.
+    black_mask = cv2.bitwise_and(black_mask, singles_mask)
+
+    # Remove small specks and thin connections from the white mask.
+    white_mask = cv2.morphologyEx(
+        white_mask, cv2.MORPH_OPEN, section_kernel
+    )
+
+    # Remove small specks and thin connections from the black mask.
+    black_mask = cv2.morphologyEx(
+        black_mask, cv2.MORPH_OPEN, section_kernel
+    )
+
+    # Find contours around the white sections.
+    white_contours, _ = cv2.findContours(
+        white_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    )
+
+    # Find contours around the black sections.
+    black_contours, _ = cv2.findContours(
+        black_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    )
+
+    # Reject tiny contours based on the size of the detected board.
+    min_section_area = cv2.contourArea(sorted_contours[0]) * 0.001
+
+    # Save the white section contours that are large enough.
+    white_sections = [
+        contour for contour in white_contours
+        if cv2.contourArea(contour) > min_section_area
+    ]
+
+    # Save the black section contours that are large enough.
+    black_sections = [
+        contour for contour in black_contours
+        if cv2.contourArea(contour) > min_section_area
+    ]
+
+    # Draw cyan outlines around white sections on your existing colour image.
+    cv2.drawContours(img, white_sections, -1, (255, 255, 0), 1)
+
+    # Draw magenta outlines around black sections on the same image.
+    cv2.drawContours(img, black_sections, -1, (255, 0, 255), 1)
 
 cv2.imshow('Board Image', img) #Displays the coloured image after elipses have been drawn.
 cv2.moveWindow('Board Image', 100, 100) #posistion the window on the screen at coordinates (100, 100)
