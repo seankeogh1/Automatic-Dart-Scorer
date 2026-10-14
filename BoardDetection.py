@@ -41,6 +41,55 @@ if len(sorted_contours) >= 2:
         inner_double_ellipse = cv2.fitEllipse(inner_double) #Calculate the elipse that best fits the inner contour
         cv2.ellipse(img, inner_double_ellipse, (0, 255, 255), 2) #draw the elipse on the image in cyan with a thickness of 2 pixels
 
+if len(sorted_contours) >= 3:
+    # 1 select the second largest contour (the inner double)
+    inner_double = sorted_contours[2]
+
+    if len(inner_double) >= 5:
+        inner_double_ellipse = cv2.fitEllipse(inner_double) #Calculate the elipse that best fits the inner contour
+        cv2.ellipse(img, inner_double_ellipse, (255, 0, 0), 2) #draw the elipse on the image in blue with a thickness of 2 pixels
+
+if len(sorted_contours) >= 4:
+    # 1 select the second largest contour (the inner double)
+    inner_double = sorted_contours[3]
+
+    if len(inner_double) >= 5:
+        inner_double_ellipse = cv2.fitEllipse(inner_double) #Calculate the elipse that best fits the inner contour
+        cv2.ellipse(img, inner_double_ellipse, (0, 255, 255), 2) #draw the elipse on the image in cyan with a thickness of 2 pixels
+
+if len(sorted_contours) >= 5:
+    # 1 select the second largest contour (the inner double)
+    inner_double = sorted_contours[4]
+
+    if len(inner_double) >= 5:
+        inner_double_ellipse = cv2.fitEllipse(inner_double) #Calculate the elipse that best fits the inner contour
+        cv2.ellipse(img, inner_double_ellipse, (255, 0, 0), 2) #draw the elipse on the image in blue with a thickness of 2 pixels
+
+# Find red shapes without closing the gaps around the inner bull
+red_contours, _ = cv2.findContours(
+    red_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE
+)
+
+if len(sorted_contours) >= 5:
+    outer_bull = sorted_contours[4]
+    bull_candidates = []
+
+    for contour in red_contours:
+        if len(contour) >= 5:
+            candidate_ellipse = cv2.fitEllipse(contour)
+            centre = candidate_ellipse[0]
+
+            # Only accept red shapes whose centre is inside the outer bull
+            if cv2.pointPolygonTest(outer_bull, centre, False) >= 0:
+                bull_candidates.append(contour)
+
+    if bull_candidates:
+        inner_bull = max(bull_candidates, key=cv2.contourArea)
+        inner_bull_ellipse = cv2.fitEllipse(inner_bull)
+
+        # Draw the inner bull boundary in yellow
+        cv2.ellipse(img, inner_bull_ellipse, (0, 255, 255), 2)
+
 cv2.imshow('Board Image', img) #Displays the coloured image after elipses have been drawn.
 cv2.moveWindow('Board Image', 100, 100) #posistion the window on the screen at coordinates (100, 100)
 
