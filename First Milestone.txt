@@ -1,0 +1,28 @@
+Start 
+
+Load Dartboard photo
+
+Display photo
+
+Ask user to mark board referance points, 20/6/3/11 maybe bull
+
+Use reference points to find board centre and correct camera 
+
+Display scoring boundaries 
+
+Click where dart entered board 
+
+   convert clicked position to board co-ordinates.
+
+calculate distance and angle from board centre.
+
+if 
+outside board score = 0
+inside bull score = 50
+outerbull score =25 
+else
+find segment number 
+
+Display score hit 
+
+Calculate Score left 
