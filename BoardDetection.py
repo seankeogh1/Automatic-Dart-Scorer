@@ -27,8 +27,8 @@ contours, hierarchy = cv2.findContours(
 
 sorted_contours = sorted(contours, key=cv2.contourArea, reverse=True) #sorts the contours eclosed by each boundry by area 
 
-# Draw the five main ring boundaries.
-for index, contour in enumerate(sorted_contours[:5]):
+
+for index, contour in enumerate(sorted_contours[:5]): #Loop for the 5 ring boundaries
 
     # Fitting an ellipse requires at least five points.
     if len(contour) >= 5:
@@ -171,6 +171,56 @@ board_numbers = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9,
 
 selection_background = img.copy()
 
+# Build a whole wedge mask from a detected single section.
+def build_wedge(section):
+            # Arrange the selected contour as a list of (x, y) points.
+            points = section.reshape(-1, 2)
+        
+            # Calculate the angle from the bull centre to each outline point.
+            angles = np.arctan2(
+                points[:, 1] - centre_y,
+                points[:, 0] - centre_x
+            )
+    
+            # Estimate the two side directions of the selected 20 section.
+            first_side = angles.min()
+            second_side = angles.max()
+    
+            # Get the x and y coordinates of every pixel in the image.
+            pixel_y, pixel_x = np.indices(gray.shape)
+    
+            # Calculate each pixel's direction from the bull centre.
+            pixel_angles = np.arctan2(
+                pixel_y - centre_y,
+                 pixel_x - centre_x
+            )
+    
+            # Mark pixels between the two sides of 20 as white.
+            wedge_mask = (
+                (pixel_angles >= first_side) &
+                (pixel_angles <= second_side)
+            ).astype(np.uint8) * 255
+    
+        
+            # Create a blank mask.
+            board_limit = np.zeros(gray.shape, dtype=np.uint8)
+    
+            # Mark everything inside the outer double boundary as white.
+            cv2.drawContours(
+                board_limit, [sorted_contours[0]], -1, 255, cv2.FILLED
+            )
+    
+                # Exclude the bull from the allowed scoring area.
+            cv2.drawContours(
+                board_limit, [sorted_contours[4]], -1, 0, cv2.FILLED
+            )
+    
+            # Keep only the part of our wedge inside that boundary.
+            wedge_mask = cv2.bitwise_and(wedge_mask, board_limit)
+            # Send the completed mask back to the code that called this function.
+            return wedge_mask
+    
+
 #Start by Adding a click to recognise 20 and then add the rest of the numbers clockwise.
 def twenty_click(event, x, y, flags, param):
 
@@ -180,49 +230,8 @@ def twenty_click(event, x, y, flags, param):
             result = cv2.pointPolygonTest(section, (x, y), False)
 
             if result >=0:
-                # Arrange the selected contour as a list of (x, y) points.
-                points = section.reshape(-1, 2)
-    
-                # Calculate the angle from the bull centre to each outline point.
-                angles = np.arctan2(
-                    points[:, 1] - centre_y,
-                    points[:, 0] - centre_x
-                )
-
-                # Estimate the two side directions of the selected 20 section.
-                first_side = angles.min()
-                second_side = angles.max()
-
-                # Get the x and y coordinates of every pixel in the image.
-                pixel_y, pixel_x = np.indices(gray.shape)
-
-                # Calculate each pixel's direction from the bull centre.
-                pixel_angles = np.arctan2(
-                    pixel_y - centre_y,
-                    pixel_x - centre_x
-                )
-
-                # Mark pixels between the two sides of 20 as white.
-                wedge_mask = (
-                    (pixel_angles >= first_side) &
-                    (pixel_angles <= second_side)
-                ).astype(np.uint8) * 255
-
-                # Remove everything inside the outer bull boundary.
-                cv2.drawContours(
-                    wedge_mask, [sorted_contours[4]], -1, 0, cv2.FILLED
-                )
-                # Create a blank mask.
-                board_limit = np.zeros(gray.shape, dtype=np.uint8)
-
-                # Mark everything inside the outer double boundary as white.
-                cv2.drawContours(
-                    board_limit, [sorted_contours[0]], -1, 255, cv2.FILLED
-                )
-
-                # Keep only the part of our wedge inside that boundary.
-                wedge_mask = cv2.bitwise_and(wedge_mask, board_limit)
-
+                wedge_mask = build_wedge(section)
+                
                 # Find the outline of the finished wedge mask.
                 wedge_contours, _ = cv2.findContours(
                     wedge_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
@@ -237,6 +246,7 @@ def twenty_click(event, x, y, flags, param):
                 )
 
                 cv2.imshow('Board Image', display)
+                break  # Stop checking other sections once a match is found.
 
 
 cv2.imshow('Board Image', img) #Displays the coloured image after elipses have been drawn.
