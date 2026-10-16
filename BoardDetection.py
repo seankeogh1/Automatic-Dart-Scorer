@@ -90,6 +90,11 @@ if len(sorted_contours) >= 5:
     if bull_candidates:
         inner_bull = max(bull_candidates, key=cv2.contourArea)
         inner_bull_ellipse = cv2.fitEllipse(inner_bull)
+        
+        centre_x, centre_y = inner_bull_ellipse[0] # Use the centre of the detected inner bull as the board centre.
+
+    
+        cv2.circle(img, (int(centre_x), int(centre_y)), 1, (255, 255, 255), -1) # Draw a small white dot so we can check its position.
 
         # Draw the inner bull boundary in yellow
         cv2.ellipse(img, inner_bull_ellipse, (0, 255, 255), 2)
@@ -197,6 +202,15 @@ def twenty_click(event, x, y, flags, param):
     #Wait for a left mouse button click event
     if event == cv2.EVENT_LBUTTONDOWN:
         print(f"Clicked at: ({x}, {y})")  # Print the coordinates of the click
+        for section in white_sections + black_sections:
+            print(f"Checking section with area: {cv2.contourArea(section)}")
+            result = cv2.pointPolygonTest(section, (x, y), False)
+            print("Click test result:", result)
+
+            if result >=0:
+
+                cv2.drawContours(img, [section], -1, (0, 255, 255), 3)  # Draw the contour in green
+                cv2.imshow('Board Image', img)
 
 
 cv2.imshow('Board Image', img) #Displays the coloured image after elipses have been drawn.
