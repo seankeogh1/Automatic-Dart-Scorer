@@ -7,7 +7,6 @@ height, width = img.shape[:2] #img.shape returns a tuple containing the dimensio
 scale = min(800 / width, 700 / height) # calculate the scaling factor to resize the image while maintaining its aspect ratio.
 img = cv2.resize(img, (int(width * scale), int(height * scale))) #multiply both dimentions by the same scale to keep the proportions of the image.
 gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) # making a grayscale version of the image for scoring zones as they are black and white.
-edges = cv2.Canny(gray, 50, 150) # detects edges where brightness changes alot 
 
 
 hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV) #convert the resized image from BGR color to HSV , makes a seperate image called  hsv img stays in BGR colour.
@@ -28,46 +27,20 @@ contours, hierarchy = cv2.findContours(
 
 sorted_contours = sorted(contours, key=cv2.contourArea, reverse=True) #sorts the contours eclosed by each boundry by area 
 
-# check at least onne contour was found and that it has enough points to fit an ellipse
-if len(sorted_contours) >= 1:
-    outer_double = sorted_contours[0]
+# Draw the five main ring boundaries.
+for index, contour in enumerate(sorted_contours[:5]):
 
-    if len(outer_double) >= 5:
-        outer_double_ellipse = cv2.fitEllipse(outer_double) #Calculate the elipse that best fits the outer contour
-        cv2.ellipse(img, outer_double_ellipse, (255, 0, 0), 2) #draw the elipse on the image in blue with a thickness of 2 pixels
+    # Fitting an ellipse requires at least five points.
+    if len(contour) >= 5:
 
-# check at least two contours were found and that the second one has enough points to fit an ellipse
-if len(sorted_contours) >= 2:
-    # 2 select the second largest contour (the inner double)
-    inner_double = sorted_contours[1]
+        # Fit an ellipse around this ring boundary.
+        ring_ellipse = cv2.fitEllipse(contour)
 
-    if len(inner_double) >= 5:
-        inner_double_ellipse = cv2.fitEllipse(inner_double) #Calculate the elipse that best fits the inner contour
-        cv2.ellipse(img, inner_double_ellipse, (0, 255, 255), 2) #draw the elipse on the image in cyan with a thickness of 2 pixels
+        # Alternate between blue and yellow outlines.
+        colour = (255, 0, 0) if index % 2 == 0 else (0, 255, 255)
 
-if len(sorted_contours) >= 3:
-    # 3 select the second largest contour (the inner double)
-    inner_double = sorted_contours[2]
-
-    if len(inner_double) >= 5:
-        inner_double_ellipse = cv2.fitEllipse(inner_double) #Calculate the elipse that best fits the inner contour
-        cv2.ellipse(img, inner_double_ellipse, (255, 0, 0), 2) #draw the elipse on the image in blue with a thickness of 2 pixels
-
-if len(sorted_contours) >= 4:
-    # 4 select the second largest contour (the inner double)
-    inner_double = sorted_contours[3]
-
-    if len(inner_double) >= 5:
-        inner_double_ellipse = cv2.fitEllipse(inner_double) #Calculate the elipse that best fits the inner contour
-        cv2.ellipse(img, inner_double_ellipse, (0, 255, 255), 2) #draw the elipse on the image in cyan with a thickness of 2 pixels
-
-if len(sorted_contours) >= 5:
-    # 5 select the second largest contour (the inner double)
-    inner_double = sorted_contours[4]
-
-    if len(inner_double) >= 5:
-        inner_double_ellipse = cv2.fitEllipse(inner_double) #Calculate the elipse that best fits the inner contour
-        cv2.ellipse(img, inner_double_ellipse, (255, 0, 0), 2) #draw the elipse on the image in blue with a thickness of 2 pixels
+        # Draw the ellipse on the image.
+        cv2.ellipse(img, ring_ellipse, colour, 2)
 
 # Find red shapes without closing the gaps around the inner bull
 red_contours, _ = cv2.findContours(
@@ -196,21 +169,74 @@ if len(sorted_contours) >= 5:
 #Dart Board Numbers in order clockwise starting from 20
 board_numbers = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5]
 
+selection_background = img.copy()
+
 #Start by Adding a click to recognise 20 and then add the rest of the numbers clockwise.
 def twenty_click(event, x, y, flags, param):
 
     #Wait for a left mouse button click event
     if event == cv2.EVENT_LBUTTONDOWN:
-        print(f"Clicked at: ({x}, {y})")  # Print the coordinates of the click
         for section in white_sections + black_sections:
-            print(f"Checking section with area: {cv2.contourArea(section)}")
             result = cv2.pointPolygonTest(section, (x, y), False)
-            print("Click test result:", result)
 
             if result >=0:
+                # Arrange the selected contour as a list of (x, y) points.
+                points = section.reshape(-1, 2)
+    
+                # Calculate the angle from the bull centre to each outline point.
+                angles = np.arctan2(
+                    points[:, 1] - centre_y,
+                    points[:, 0] - centre_x
+                )
 
-                cv2.drawContours(img, [section], -1, (0, 255, 255), 3)  # Draw the contour in green
-                cv2.imshow('Board Image', img)
+                # Estimate the two side directions of the selected 20 section.
+                first_side = angles.min()
+                second_side = angles.max()
+
+                # Get the x and y coordinates of every pixel in the image.
+                pixel_y, pixel_x = np.indices(gray.shape)
+
+                # Calculate each pixel's direction from the bull centre.
+                pixel_angles = np.arctan2(
+                    pixel_y - centre_y,
+                    pixel_x - centre_x
+                )
+
+                # Mark pixels between the two sides of 20 as white.
+                wedge_mask = (
+                    (pixel_angles >= first_side) &
+                    (pixel_angles <= second_side)
+                ).astype(np.uint8) * 255
+
+                # Remove everything inside the outer bull boundary.
+                cv2.drawContours(
+                    wedge_mask, [sorted_contours[4]], -1, 0, cv2.FILLED
+                )
+                # Create a blank mask.
+                board_limit = np.zeros(gray.shape, dtype=np.uint8)
+
+                # Mark everything inside the outer double boundary as white.
+                cv2.drawContours(
+                    board_limit, [sorted_contours[0]], -1, 255, cv2.FILLED
+                )
+
+                # Keep only the part of our wedge inside that boundary.
+                wedge_mask = cv2.bitwise_and(wedge_mask, board_limit)
+
+                # Find the outline of the finished wedge mask.
+                wedge_contours, _ = cv2.findContours(
+                    wedge_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+                )
+
+                # Start from the saved image so previous wedge highlights are cleared.
+                display = selection_background.copy()
+
+                # Draw the whole wedge outline in yellow.
+                cv2.drawContours(
+                    display, wedge_contours, -1, (0, 255, 255), 2
+                )
+
+                cv2.imshow('Board Image', display)
 
 
 cv2.imshow('Board Image', img) #Displays the coloured image after elipses have been drawn.
