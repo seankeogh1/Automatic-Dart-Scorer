@@ -171,6 +171,38 @@ board_numbers = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9,
 
 selection_background = img.copy()
 
+# Collect the outer single sections, one reference for each wedge.
+outer_sections = []
+
+for section in white_sections + black_sections:
+
+    # Calculate the centre of this section.
+    moments = cv2.moments(section)
+    if moments["m00"] == 0:
+        continue
+
+    x = moments["m10"] / moments["m00"]
+    y = moments["m01"] / moments["m00"]
+
+    # Keep sections whose centre is outside the outer treble boundary.
+    if cv2.pointPolygonTest(sorted_contours[2], (x, y), False) < 0:
+        outer_sections.append(section)
+
+# Find the direction from the bull centre to a sections centre.
+def section_angle(section):
+
+    # Calculate the section's centre.
+    moments = cv2.moments(section)
+    x = moments["m10"] / moments["m00"]
+    y = moments["m01"] / moments["m00"]
+
+    # Return its direction in radians.
+    return np.arctan2(y - centre_y, x - centre_x)
+
+# Sort the outer sections clockwise by their direction around the bull.
+outer_sections = sorted(outer_sections, key=section_angle)
+
+
 # Build a whole wedge mask from a detected single section.
 def build_wedge(section):
             # Arrange the selected contour as a list of (x, y) points.
@@ -181,6 +213,10 @@ def build_wedge(section):
                 points[:, 1] - centre_y,
                 points[:, 0] - centre_x
             )
+
+            # Measure boundary angles relative to this section's direction.
+            reference_angle = section_angle(section)
+            angles = (angles - reference_angle + np.pi) % (2 * np.pi) - np.pi
     
             # Estimate the two side directions of the selected 20 section.
             first_side = angles.min()
@@ -194,6 +230,10 @@ def build_wedge(section):
                 pixel_y - centre_y,
                  pixel_x - centre_x
             )
+            # Measure pixel angles relative to the same direction.
+            pixel_angles = (
+                pixel_angles - reference_angle + np.pi
+            ) % (2 * np.pi) - np.pi
     
             # Mark pixels between the two sides of 20 as white.
             wedge_mask = (
@@ -226,19 +266,59 @@ def twenty_click(event, x, y, flags, param):
 
     #Wait for a left mouse button click event
     if event == cv2.EVENT_LBUTTONDOWN:
-        for section in white_sections + black_sections:
+        for section_index, section in enumerate(outer_sections):
             result = cv2.pointPolygonTest(section, (x, y), False)
 
             if result >=0:
+
+                # Start the clockwise list at the section you clicked as 20.
+                ordered_sections = (
+                    outer_sections[section_index:] +
+                    outer_sections[:section_index]
+                )
+
+                display = selection_background.copy()
+
+
+                # Pair each number with its section, starting at 20.
+                for number, scoring_section in zip(board_numbers, ordered_sections):
+                    # Find the direction towards this numbered section.
+                    label_angle = section_angle(scoring_section)
+                    # Get the points around the outside of the double ring.
+                    boundary_points = sorted_contours[0].reshape(-1, 2)
+
+                    # Calculate their directions from the bull centre.
+                    boundary_angles = np.arctan2(
+                        boundary_points[:, 1] - centre_y,
+                        boundary_points[:, 0] - centre_x
+                    )
+
+                    # Find the boundary point closest to the label's direction.
+                    angle_difference = np.abs(
+                        (boundary_angles - label_angle + np.pi)
+                        % (2 * np.pi) - np.pi
+                    )
+                    boundary_x, boundary_y = boundary_points[
+                        np.argmin(angle_difference)
+                    ]
+                    # Position the number 18 pixels beyond the double ring.
+                    label_x = int(boundary_x + 18 * np.cos(label_angle))
+                    label_y = int(boundary_y + 18 * np.sin(label_angle))
+
+                    # Draw the number in yellow.
+                    cv2.putText(
+                        display, str(number), (label_x, label_y),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.45,
+                        (0, 255, 255), 1, cv2.LINE_AA
+                    )
+
                 wedge_mask = build_wedge(section)
-                
+
                 # Find the outline of the finished wedge mask.
                 wedge_contours, _ = cv2.findContours(
                     wedge_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
                 )
 
-                # Start from the saved image so previous wedge highlights are cleared.
-                display = selection_background.copy()
 
                 # Draw the whole wedge outline in yellow.
                 cv2.drawContours(
