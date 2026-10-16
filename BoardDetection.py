@@ -38,7 +38,7 @@ if len(sorted_contours) >= 1:
 
 # check at least two contours were found and that the second one has enough points to fit an ellipse
 if len(sorted_contours) >= 2:
-    # 1 select the second largest contour (the inner double)
+    # 2 select the second largest contour (the inner double)
     inner_double = sorted_contours[1]
 
     if len(inner_double) >= 5:
@@ -46,7 +46,7 @@ if len(sorted_contours) >= 2:
         cv2.ellipse(img, inner_double_ellipse, (0, 255, 255), 2) #draw the elipse on the image in cyan with a thickness of 2 pixels
 
 if len(sorted_contours) >= 3:
-    # 1 select the second largest contour (the inner double)
+    # 3 select the second largest contour (the inner double)
     inner_double = sorted_contours[2]
 
     if len(inner_double) >= 5:
@@ -54,7 +54,7 @@ if len(sorted_contours) >= 3:
         cv2.ellipse(img, inner_double_ellipse, (255, 0, 0), 2) #draw the elipse on the image in blue with a thickness of 2 pixels
 
 if len(sorted_contours) >= 4:
-    # 1 select the second largest contour (the inner double)
+    # 4 select the second largest contour (the inner double)
     inner_double = sorted_contours[3]
 
     if len(inner_double) >= 5:
@@ -62,7 +62,7 @@ if len(sorted_contours) >= 4:
         cv2.ellipse(img, inner_double_ellipse, (0, 255, 255), 2) #draw the elipse on the image in cyan with a thickness of 2 pixels
 
 if len(sorted_contours) >= 5:
-    # 1 select the second largest contour (the inner double)
+    # 5 select the second largest contour (the inner double)
     inner_double = sorted_contours[4]
 
     if len(inner_double) >= 5:
@@ -187,7 +187,20 @@ if len(sorted_contours) >= 5:
     # Draw magenta outlines around black sections on the same image.
     cv2.drawContours(img, black_sections, -1, (255, 0, 255), 1)
 
+
+#Dart Board Numbers in order clockwise starting from 20
+board_numbers = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5]
+
+#Start by Adding a click to recognise 20 and then add the rest of the numbers clockwise.
+def twenty_click(event, x, y, flags, param):
+
+    #Wait for a left mouse button click event
+    if event == cv2.EVENT_LBUTTONDOWN:
+        print(f"Clicked at: ({x}, {y})")  # Print the coordinates of the click
+
+
 cv2.imshow('Board Image', img) #Displays the coloured image after elipses have been drawn.
+cv2.setMouseCallback('Board Image', twenty_click) # Connect mouse events in this window to our function.
 cv2.moveWindow('Board Image', 100, 100) #posistion the window on the screen at coordinates (100, 100)
 
 cv2.waitKey(0)
