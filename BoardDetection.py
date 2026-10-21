@@ -72,8 +72,6 @@ if len(sorted_contours) >= 5:
 
     # Choose the largest contour within that area.
     outer_bull = max(outer_bull_candidates, key=cv2.contourArea)
-    # Highlight the contour currently being treated as the outer bull.
-    cv2.drawContours(img, [outer_bull], -1, (0, 165, 255), 3)
     bull_candidates = []
 
     for contour in red_contours:
