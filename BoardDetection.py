@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-img = cv2.imread('Images/EmptyBoardTest.jpg', cv2.IMREAD_COLOR) #Load the Dartboard image, IMREAD_COLOR loads the image in coloR, The image data is stored in img
+img = cv2.imread('Images/TestEmptyBoard3.jpg', cv2.IMREAD_COLOR) #Load the Dartboard image, IMREAD_COLOR loads the image in coloR, The image data is stored in img
 
 height, width = img.shape[:2] #img.shape returns a tuple containing the dimensions of the image. The first two elements of this tuple represent the height and width of the image, respectively. The [:2] slice is used to extract only these two values, which are then assigned to the variables height and width. 
 scale = min(800 / width, 700 / height) # calculate the scaling factor to resize the image while maintaining its aspect ratio.
@@ -48,7 +48,32 @@ red_contours, _ = cv2.findContours(
 )
 
 if len(sorted_contours) >= 5:
-    outer_bull = sorted_contours[4]
+    # Collect possible bull contours inside the inner treble boundary.
+    outer_bull_candidates = []
+
+    for contour in sorted_contours[4:]:
+
+        # Check that every outline point is inside the inner treble.
+        inside = all(
+            cv2.pointPolygonTest(
+                sorted_contours[3],
+                (float(point[0][0]), float(point[0][1])),
+                False
+            ) > 0
+            for point in contour
+        )
+
+        if inside:
+            outer_bull_candidates.append(contour)
+
+    # Stop if no suitable contour was found.
+    if not outer_bull_candidates:
+        raise ValueError("Outer bull not found inside the treble ring.")
+
+    # Choose the largest contour within that area.
+    outer_bull = max(outer_bull_candidates, key=cv2.contourArea)
+    # Highlight the contour currently being treated as the outer bull.
+    cv2.drawContours(img, [outer_bull], -1, (0, 165, 255), 3)
     bull_candidates = []
 
     for contour in red_contours:
@@ -169,6 +194,14 @@ if len(sorted_contours) >= 5:
 #Dart Board Numbers in order clockwise starting from 20
 board_numbers = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5]
 
+#Doubles Numbers in order clockwise starting from 20
+outer_numbers = [number * 2 for number in board_numbers]
+
+#Triples Numbers in order clockwise starting from 20 
+inner_numbers =[number * 3 for number in board_numbers]
+
+
+
 selection_background = img.copy()
 
 # Collect the outer single sections, one reference for each wedge.
@@ -259,74 +292,186 @@ def build_wedge(section):
             wedge_mask = cv2.bitwise_and(wedge_mask, board_limit)
             # Send the completed mask back to the code that called this function.
             return wedge_mask
-    
+
+# Store each scoring area's mask, score and label after calibration.
+scoring_areas = []
+
+
+# Create a filled mask inside a contour.
+def filled_mask(contour):
+    mask = np.zeros(gray.shape, dtype=np.uint8)
+    cv2.drawContours(mask, [contour], -1, 255, cv2.FILLED)
+    return mask
+
+
+# Create a ring between an outside and inside boundary.
+def ring_mask(outside_contour, inside_contour):
+    mask = filled_mask(outside_contour)
+    cv2.drawContours(mask, [inside_contour], -1, 0, cv2.FILLED)
+    return mask
+
+
+# The double ring lies between the first two detected boundaries.
+double_mask = ring_mask(sorted_contours[0], sorted_contours[1])
+
+# The treble ring lies between the next two boundaries.
+treble_mask = ring_mask(sorted_contours[2], sorted_contours[3])
+
+# Outer singles lie between the double and treble rings.
+outer_single_mask = ring_mask(sorted_contours[1], sorted_contours[2])
+
+# Inner singles lie between the treble ring and outer bull.
+inner_single_mask = ring_mask(sorted_contours[3], sorted_contours[4])
+
+# Both single areas have the same scoring rule, so combine them.
+single_mask = cv2.bitwise_or(outer_single_mask, inner_single_mask)
+
+# Track whether a section has been selected and testing has started.
+twenty_selected = False
+testing = False
 
 #Start by Adding a click to recognise 20 and then add the rest of the numbers clockwise.
 def twenty_click(event, x, y, flags, param):
+    global twenty_selected, testing
 
-    #Wait for a left mouse button click event
-    if event == cv2.EVENT_LBUTTONDOWN:
-        for section_index, section in enumerate(outer_sections):
-            result = cv2.pointPolygonTest(section, (x, y), False)
+    # Ignore events other than a left click.
+    if event != cv2.EVENT_LBUTTONDOWN:
+        return
 
-            if result >=0:
+    
+    
+    if testing:
 
-                # Start the clockwise list at the section you clicked as 20.
-                ordered_sections = (
-                    outer_sections[section_index:] +
-                    outer_sections[:section_index]
-                )
+        # Ignore clicks on the Start Test button.
+        if 10 <= x <= 175 and 10 <= y <= 50:
+            return
 
-                display = selection_background.copy()
+        for area in scoring_areas:
 
+            # A white pixel means this position is inside the area's mask.
+            if area["mask"][y, x] != 0:
+                print(f'{area["label"]}: {area["score"]}')
+                return
 
-                # Pair each number with its section, starting at 20.
-                for number, scoring_section in zip(board_numbers, ordered_sections):
-                    # Find the direction towards this numbered section.
-                    label_angle = section_angle(scoring_section)
-                    # Get the points around the outside of the double ring.
-                    boundary_points = sorted_contours[0].reshape(-1, 2)
+        # The click was not inside any stored scoring area.
+        print("Miss or unassigned area: 0")
+        return
+        
 
-                    # Calculate their directions from the bull centre.
-                    boundary_angles = np.arctan2(
-                        boundary_points[:, 1] - centre_y,
-                        boundary_points[:, 0] - centre_x
+    # Start testing only after a section has been selected.
+    if 10 <= x <= 175 and 10 <= y <= 50:
+        if twenty_selected:
+            testing = True
+            print("20 confirmed. Testing started.")
+        return
+
+    # Find which outer single section was clicked.
+    for section_index, section in enumerate(outer_sections):
+        result = cv2.pointPolygonTest(section, (x, y), False)
+
+        if result >= 0:
+            twenty_selected = True
+
+            # Start the clockwise section list at the selected 20.
+            ordered_sections = (
+                outer_sections[section_index:] +
+                outer_sections[:section_index]
+            )
+
+            display = selection_background.copy()
+
+            # Remove scoring areas from any previous selection.
+            scoring_areas.clear()
+
+            # Build and label every numbered wedge.
+            for number, double_score, treble_score, scoring_section in zip(
+                board_numbers, outer_numbers, inner_numbers, ordered_sections
+            ):
+                numbered_wedge = build_wedge(scoring_section)
+
+                # Save the three scoring regions within this wedge.
+                for region_mask, score, label in [
+                    (single_mask, number, f"Single {number}"),
+                    (double_mask, double_score, f"Double {number}"),
+                    (treble_mask, treble_score, f"Treble {number}")
+                ]:
+                    area_mask = cv2.bitwise_and(
+                        numbered_wedge, region_mask
                     )
 
-                    # Find the boundary point closest to the label's direction.
-                    angle_difference = np.abs(
-                        (boundary_angles - label_angle + np.pi)
-                        % (2 * np.pi) - np.pi
-                    )
-                    boundary_x, boundary_y = boundary_points[
-                        np.argmin(angle_difference)
-                    ]
-                    # Position the number 18 pixels beyond the double ring.
-                    label_x = int(boundary_x + 18 * np.cos(label_angle))
-                    label_y = int(boundary_y + 18 * np.sin(label_angle))
+                    scoring_areas.append({
+                        "mask": area_mask,
+                        "score": score,
+                        "label": label
+                    })
 
-                    # Draw the number in yellow.
-                    cv2.putText(
-                        display, str(number), (label_x, label_y),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.45,
-                        (0, 255, 255), 1, cv2.LINE_AA
-                    )
+                # Draw one number label for this wedge.
+                label_angle = section_angle(scoring_section)
+                boundary_points = sorted_contours[0].reshape(-1, 2)
 
-                wedge_mask = build_wedge(section)
-
-                # Find the outline of the finished wedge mask.
-                wedge_contours, _ = cv2.findContours(
-                    wedge_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+                boundary_angles = np.arctan2(
+                    boundary_points[:, 1] - centre_y,
+                    boundary_points[:, 0] - centre_x
                 )
 
-
-                # Draw the whole wedge outline in yellow.
-                cv2.drawContours(
-                    display, wedge_contours, -1, (0, 255, 255), 2
+                angle_difference = np.abs(
+                    (boundary_angles - label_angle + np.pi)
+                    % (2 * np.pi) - np.pi
                 )
 
-                cv2.imshow('Board Image', display)
-                break  # Stop checking other sections once a match is found.
+                boundary_x, boundary_y = boundary_points[
+                    np.argmin(angle_difference)
+                ]
+
+                label_x = int(boundary_x + 18 * np.cos(label_angle))
+                label_y = int(boundary_y + 18 * np.sin(label_angle))
+
+                cv2.putText(
+                    display, str(number), (label_x, label_y),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.45,
+                    (0, 255, 255), 1, cv2.LINE_AA
+                )
+
+            # Outer bull: inside the outer bull boundary, excluding bullseye.
+            scoring_areas.append({
+                "mask": ring_mask(outer_bull, inner_bull),
+                "score": 25,
+                "label": "Outer bull"
+            })
+
+            # Bullseye: inside the inner bull boundary.
+            scoring_areas.append({
+                "mask": filled_mask(inner_bull),
+                "score": 50,
+                "label": "Bullseye"
+            })
+
+            # Highlight the selected 20 wedge after all areas are saved.
+            wedge_mask = build_wedge(section)
+
+            wedge_contours, _ = cv2.findContours(
+                wedge_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+            )
+
+            cv2.drawContours(
+                display, wedge_contours, -1, (0, 255, 255), 2
+            )
+
+            # Draw the Start Test button.
+            cv2.rectangle(
+                display, (10, 10), (175, 50),
+                (50, 120, 50), cv2.FILLED
+            )
+
+            cv2.putText(
+                display, "Start Test", (20, 37),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6,
+                (255, 255, 255), 1, cv2.LINE_AA
+            )
+
+            print(f"Saved {len(scoring_areas)} scoring areas.")
+            cv2.imshow('Board Image', display)
+            break
 
 
 cv2.imshow('Board Image', img) #Displays the coloured image after elipses have been drawn.
