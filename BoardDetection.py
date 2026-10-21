@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-img = cv2.imread('Images/EmptyBoardTest.jpg', cv2.IMREAD_COLOR) #Load the Dartboard image, IMREAD_COLOR loads the image in coloR, The image data is stored in img
+img = cv2.imread('Images/TestEmptyBoard3.jpg', cv2.IMREAD_COLOR) #Load the Dartboard image, IMREAD_COLOR loads the image in coloR, The image data is stored in img
 
 height, width = img.shape[:2] #img.shape returns a tuple containing the dimensions of the image. The first two elements of this tuple represent the height and width of the image, respectively. The [:2] slice is used to extract only these two values, which are then assigned to the variables height and width. 
 scale = min(800 / width, 700 / height) # calculate the scaling factor to resize the image while maintaining its aspect ratio.
@@ -48,7 +48,32 @@ red_contours, _ = cv2.findContours(
 )
 
 if len(sorted_contours) >= 5:
-    outer_bull = sorted_contours[4]
+    # Collect possible bull contours inside the inner treble boundary.
+    outer_bull_candidates = []
+
+    for contour in sorted_contours[4:]:
+
+        # Check that every outline point is inside the inner treble.
+        inside = all(
+            cv2.pointPolygonTest(
+                sorted_contours[3],
+                (float(point[0][0]), float(point[0][1])),
+                False
+            ) > 0
+            for point in contour
+        )
+
+        if inside:
+            outer_bull_candidates.append(contour)
+
+    # Stop if no suitable contour was found.
+    if not outer_bull_candidates:
+        raise ValueError("Outer bull not found inside the treble ring.")
+
+    # Choose the largest contour within that area.
+    outer_bull = max(outer_bull_candidates, key=cv2.contourArea)
+    # Highlight the contour currently being treated as the outer bull.
+    cv2.drawContours(img, [outer_bull], -1, (0, 165, 255), 3)
     bull_candidates = []
 
     for contour in red_contours:
@@ -314,7 +339,7 @@ def twenty_click(event, x, y, flags, param):
         return
 
     
-     # Once testing starts, check which scoring area contains the click.
+    
     if testing:
 
         # Ignore clicks on the Start Test button.
