@@ -169,6 +169,14 @@ if len(sorted_contours) >= 5:
 #Dart Board Numbers in order clockwise starting from 20
 board_numbers = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5]
 
+#Doubles Numbers in order clockwise starting from 20
+outer_numbers = [number * 2 for number in board_numbers]
+
+#Triples Numbers in order clockwise starting from 20 
+inner_numbers =[number * 3 for number in board_numbers]
+
+
+
 selection_background = img.copy()
 
 # Collect the outer single sections, one reference for each wedge.
