@@ -28,7 +28,7 @@ contours, hierarchy = cv2.findContours(
 sorted_contours = sorted(contours, key=cv2.contourArea, reverse=True) #sorts the contours eclosed by each boundry by area 
 
 
-for index, contour in enumerate(sorted_contours[:5]): #Loop for the 5 ring boundaries
+for index, contour in enumerate(sorted_contours[:4]): #Loop for the 4 ring boundaries
 
     # Fitting an ellipse requires at least five points.
     if len(contour) >= 5:
@@ -72,6 +72,7 @@ if len(sorted_contours) >= 5:
 
     # Choose the largest contour within that area.
     outer_bull = max(outer_bull_candidates, key=cv2.contourArea)
+    cv2.drawContours(img, [outer_bull], -1, (255, 0, 0), 2)
     bull_candidates = []
 
     for contour in red_contours:
@@ -120,7 +121,7 @@ if len(sorted_contours) >= 5:
 
     # Remove the bull area from the mask.
     cv2.drawContours(
-        singles_mask, [sorted_contours[4]], -1, 0, cv2.FILLED
+        singles_mask, [outer_bull], -1, 0, cv2.FILLED
     )
 
     # Create a small kernel for cleaning up the masks.
@@ -283,7 +284,7 @@ def build_wedge(section):
     
                 # Exclude the bull from the allowed scoring area.
             cv2.drawContours(
-                board_limit, [sorted_contours[4]], -1, 0, cv2.FILLED
+                board_limit, [outer_bull], -1, 0, cv2.FILLED
             )
     
             # Keep only the part of our wedge inside that boundary.
@@ -319,7 +320,7 @@ treble_mask = ring_mask(sorted_contours[2], sorted_contours[3])
 outer_single_mask = ring_mask(sorted_contours[1], sorted_contours[2])
 
 # Inner singles lie between the treble ring and outer bull.
-inner_single_mask = ring_mask(sorted_contours[3], sorted_contours[4])
+inner_single_mask = ring_mask(sorted_contours[3], outer_bull)
 
 # Both single areas have the same scoring rule, so combine them.
 single_mask = cv2.bitwise_or(outer_single_mask, inner_single_mask)
