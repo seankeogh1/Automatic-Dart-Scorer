@@ -1,15 +1,21 @@
 import cv2
 import numpy as np
+from BoardDetection import detect_board
+
+# Run board detection and collect its results.
+#before_board = detect_board("Images/EmptyBoardTest.jpg")
+
+# Detect the board in the photo containing the dart.
+#after_board = detect_board("Images/BoardWithDarts.jpg")
+
+#print("After bull centre:", after_board["bull_centre"])
+
+#print("Bull centre:", before_board["bull_centre"])
 
 #Add the picture of the empty dartboard 
-before_image = cv2.imread('Images/EmptyBoardTest.jpg',cv2.IMREAD_COLOR)
+before_image = cv2.imread("Images/Before.jpg", cv2.IMREAD_COLOR)
 
-
-
-
-#Add the picture of the dartboard with darts in it.
-
-after_image = cv2.imread('Images/BoardWithDarts.jpg', cv2.IMREAD_COLOR)
+after_image = cv2.imread("Images/After.jpg", cv2.IMREAD_COLOR)
 
 
 #Error handling for image loading
@@ -32,13 +38,15 @@ after_image = cv2.resize(after_image, new_size)
 Images =np.hstack((before_image, after_image))
 cv2.imshow('Before and After Images', Images)
 
-cv2.waitKey(0)
-cv2.destroyAllWindows()
+
 
 
 
 
 #Find the difference between the two images to find the darts.
+difference = cv2.absdiff(before_image, after_image)
+
+cv2.imshow('Difference Image', difference)
 
 
 #Find the darts in the image and their locations.
@@ -46,3 +54,6 @@ cv2.destroyAllWindows()
 #find the score of each dart based on its location and the dartboard layout.
 
 #display the score of each dart and the total score.
+
+cv2.waitKey(0)
+cv2.destroyAllWindows()
