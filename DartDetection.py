@@ -46,6 +46,46 @@ cv2.imshow('Before and After Images', Images)
 #Find the difference between the two images to find the darts.
 difference = cv2.absdiff(before_image, after_image)
 
+# Convert the difference to grayscale.
+difference_gray = cv2.cvtColor(difference, cv2.COLOR_BGR2GRAY)
+
+# Mark changes above 25 as white; everything else becomes black.
+_, dart_mask = cv2.threshold(
+    difference_gray, 25, 255, cv2.THRESH_BINARY
+)
+
+# Find the outlines of the white shapes.
+contours, _ = cv2.findContours(
+    dart_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+)
+
+# Draw the largest shape on a copy of the after image.
+dart_preview = after_image.copy()
+
+if contours:
+    dart_contour = max(contours, key=cv2.contourArea)
+
+    cv2.drawContours(
+        dart_preview, [dart_contour], -1, (0, 255, 0), 1
+    )
+        
+        
+    # For this photo, the tip is the lowest point on the contour.
+    points = dart_contour.reshape(-1, 2)
+    tip_x, tip_y = points[np.argmax(points[:, 1])]
+
+    # Mark the candidate tip with a small red circle.
+    cv2.circle(
+        dart_preview, (int(tip_x), int(tip_y)),
+        2, (0, 0, 255), 1
+    )
+
+    print("Candidate tip:", int(tip_x), int(tip_y))
+
+cv2.imshow("Dart Outline", dart_preview)
+
+cv2.imshow("Dart Mask", dart_mask)
+
 cv2.imshow('Difference Image', difference)
 
 
