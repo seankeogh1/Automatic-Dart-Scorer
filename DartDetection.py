@@ -3,8 +3,8 @@ import numpy as np
 from BoardDetection import detect_board
 
 # Load the board images before and after adding a dart.
-before_image = cv2.imread("Images/After2.jpg", cv2.IMREAD_COLOR)
-after_image = cv2.imread("Images/After3.jpg", cv2.IMREAD_COLOR)
+before_image = cv2.imread("Images/After.jpg", cv2.IMREAD_COLOR)
+after_image = cv2.imread("Images/After2.jpg", cv2.IMREAD_COLOR)
 # Check that both images loaded.
 if before_image is None or after_image is None:
     raise ValueError("Could not load one or both images. Check the file paths.")
