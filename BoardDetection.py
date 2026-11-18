@@ -1,19 +1,16 @@
+
 import cv2
 import numpy as np
 
 
-def detect_board(image_path, show_debug=False):
-    # Load and resize the board image.
-    img = cv2.imread(image_path, cv2.IMREAD_COLOR)
+def detect_board(image, show_debug=False):
+    # Accept an image already loaded and resized by Scoring.py
+    if image is None:
+        raise ValueError("No board image supplied.")
 
-    if img is None:
-        raise ValueError(f"Could not load image: {image_path}")
-
-    height, width = img.shape[:2]
-    scale = min(800 / width, 700 / height)
-    img = cv2.resize(img, (int(width * scale), int(height * scale)))
-
+    img = image.copy()
     clean_image = img.copy()
+
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
@@ -392,14 +389,42 @@ def detect_board(image_path, show_debug=False):
         "inner_treble": inner_treble,
         "bull_centre": (centre_x, centre_y),
         "outer_sections": outer_sections,
-        "test_click": test_click
+        "test_click": test_click,
+        "scoring_areas": scoring_areas,
+        "calibrated": testing
     }
+  
+def get_score(board, x, y):
+    # Calibration must be completed before scoring.
+    if not board["calibrated"]:
+        raise ValueError("Select 20 and click Start Test first.")
 
+    height, width = board["image"].shape[:2]
+    x, y = int(x), int(y)
+
+    if not (0 <= x < width and 0 <= y < height):
+        raise ValueError("Dart coordinates are outside the image.")
+
+    # Find the scoring mask containing the dart tip.
+    for area in board["scoring_areas"]:
+        if area["mask"][y, x] != 0:
+            return area["score"]
+
+    return 0
 
 if __name__ == "__main__":
-    board = detect_board(
-        "Images/EmptyBoardTest.jpg",
-        show_debug=True
+    image = cv2.imread("Images/EmptyBoardTest.jpg")
+
+    if image is None:
+        raise ValueError("Could not load the board image.")
+
+    height, width = image.shape[:2]
+    scale = min(800 / width, 700 / height)
+
+    image = cv2.resize(
+        image,
+        (int(width * scale), int(height * scale))
     )
 
+    board = detect_board(image, show_debug=True)
     print("Returned test click:", board["test_click"])
