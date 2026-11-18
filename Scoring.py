@@ -57,7 +57,7 @@ def score_throw(before_path, after_path):
         )
 
     # Find the new dart in the same coordinate system as the board.
-    tip = detect_dart(before, after, show_debug=True)
+    tip = detect_dart(before, after, show_debug=False)
 
     if tip is None:
         print("No dart tip detected.")
